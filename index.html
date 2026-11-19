@@ -701,6 +701,9 @@ function toApiMessages(){
   const sys = state.cfg.sys.trim();
   const out = sys ? [{ role:'system', content: sys }] : [];
   for(const m of state.cur.messages){
+    // 跳过正在流式生成的占位消息、出错的消息、以及空 assistant 消息
+    // （DeepSeek 接口要求最后一条不能是 assistant，否则 400）
+    if(m.streaming || m.isError) continue;
     if(m.role === 'user'){
       if(m.images && m.images.length){
         out.push({ role:'user', content: [
@@ -711,9 +714,11 @@ function toApiMessages(){
         out.push({ role:'user', content: m.content });
       }
     }else if(m.role === 'assistant'){
+      const hasTools = m.toolCalls && m.toolCalls.length;
+      if(!m.content && !hasTools) continue;   // 空回复不入上下文
       const o = { role:'assistant', content: m.content || '' };
       if(m.reasoningContent) o.reasoning_content = m.reasoningContent;
-      if(m.toolCalls && m.toolCalls.length){
+      if(hasTools){
         o.tool_calls = m.toolCalls.map(t => ({ id:t.id, type:'function', function:{ name:t.name, arguments:t.args } }));
       }
       out.push(o);
@@ -907,7 +912,8 @@ async function runTurn(){
         acc = await streamOnce(() => { paint(); }, signal.signal);
       }catch(err){
         a.streaming = false;
-        if(err.name === 'AbortError'){ a.content = a.content || '（已停止）'; }
+        a.isError = true;      // 出错消息不进入后续请求的上下文
+        if(err.name === 'AbortError'){ a.content = a.content || '（已停止）'; a.isError = false; }
         else {
           a.content = (a.content ? a.content + '\n\n' : '') + '⚠️ ' + err.message;
           if(/401|API Key/.test(err.message)) a.content += '\n\n请到「设置」里检查 API Key（最好以 sk- 开头），或点「演示效果」先看看界面。';
