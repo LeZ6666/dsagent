@@ -321,7 +321,8 @@ textarea#ta::placeholder{color:var(--dim2)}
     </div>
     <div class="fld">
       <label>系统提示词（可选）</label>
-      <textarea id="inpSys" placeholder="例如：你是一个简洁的助手，用中文回答，能查就查，不要瞎编。"></textarea>
+      <textarea id="inpSys" placeholder="例如：回答尽量简短，多用列表。"></textarea>
+      <div class="hint">内置身份提示词已固定（告诉模型它是 DeepSeek 的模型），这里写的内容会追加在后面。</div>
     </div>
     <div class="fld">
       <label>接口地址（进阶）</label>
@@ -703,9 +704,22 @@ function apiPath(p){
   return apiBase() + p;
 }
 
+// 内置身份提示词：没有它，模型容易被训练语料里的 ChatGPT 对话带偏而自称 ChatGPT
+function identityPrompt(){
+  const m = state.cfg.model === 'deepseek-v4-pro' ? 'deepseek-v4-pro' : 'deepseek-flash';
+  return [
+    '你是 DeepSeek Agent，一个运行在用户手机上的 AI 助手，通过 DeepSeek 官方 API 调用模型。',
+    '你由深度求索（DeepSeek）提供，底层模型是 ' + m + '（DeepSeek 出品），不是 OpenAI、ChatGPT、GPT-4 或任何其他公司的产品。',
+    '当用户问你是什么模型、谁开发的，如实回答：你是 DeepSeek 的 ' + m + ' 模型，运行在 DeepSeek Agent App 里。',
+    '不要声称自己是 ChatGPT 或 OpenAI 的产品。',
+    '默认使用简体中文回答，简洁、准确；涉及事实性问题时先查证再回答，不确定就说不确定。'
+  ].join('\n');
+}
+
 function toApiMessages(){
-  const sys = state.cfg.sys.trim();
-  const out = sys ? [{ role:'system', content: sys }] : [];
+  const userSys = state.cfg.sys.trim();
+  const sysText = userSys ? (identityPrompt() + '\n\n【用户附加要求】\n' + userSys) : identityPrompt();
+  const out = [{ role:'system', content: sysText }];
   for(const m of state.cur.messages){
     // 跳过正在流式生成的占位消息、出错的消息、以及空 assistant 消息
     // （DeepSeek 接口要求最后一条不能是 assistant，否则 400）
