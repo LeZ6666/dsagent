@@ -1,5 +1,5 @@
 /* DeepSeek Agent — 离线缓存（仅在 HTTPS / localhost 下生效） */
-const CACHE = 'dsagent-v2';
+const CACHE = 'dsagent-v3';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/icon-180.png'];
 
 self.addEventListener('install', e => {
